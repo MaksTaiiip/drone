@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Drone Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:       #0a0a0f;
+      --surface:  #12121a;
+      --border:   #1e1e2e;
+      --green:    #00ff88;
+      --red:      #ff3d5a;
+      --blue:     #4d9fff;
+      --amber:    #ffb020;
+      --muted:    #4a4a6a;
+      --text:     #e0e0f0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px 20px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 28px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+    }
+    header h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--green);
+      letter-spacing: -0.5px;
+    }
+    #status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      display: inline-block;
+      transition: background 0.3s;
+    }
+    #status-dot.live    { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
+    #status-dot.offline { background: var(--red);   box-shadow: 0 0 8px var(--red); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    #last-update { font-size: 11px; color: var(--muted); margin-left: auto; }
+
+    /* Grid */
+    .grid-main {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .card-label {
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 8px;
+    }
+    .card-value {
+      font-family: 'Syne', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1;
+    }
+    .card-sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* Mode badge */
+    #mode-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-family: 'Syne', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      transition: all 0.3s;
+    }
+    #mode-badge.auto   { background: rgba(0,255,136,0.12); color: var(--green); }
+    #mode-badge.manual { background: rgba(77,159,255,0.12); color: var(--blue); }
+
+    /* IR sensors */
+    .ir-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .ir-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 12px;
+      text-align: center;
+    }
+    .ir-label { font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+    .ir-dot {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      margin: 10px auto 6px;
+      transition: all 0.2s;
+    }
+    .ir-dot.black { background: #111; border: 2px solid #333; }
+    .ir-dot.white { background: #eee; border: 2px solid #ccc; box-shadow: 0 0 10px rgba(255,255,255,0.3); }
+    .ir-text { font-size: 12px; font-weight: 600; }
+
+    /* Command */
+    #command-display {
+      font-family: 'Syne', sans-serif;
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      color: var(--amber);
+    }
+
+    /* Events log */
+    .events-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .events-title {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 12px;
+    }
+    .event-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .event-row:last-child { border-bottom: none; }
+    .event-time { color: var(--muted); min-width: 70px; }
+    .event-type { padding: 1px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; min-width: 90px; text-align: center; }
+    .type-mode_change     { background: rgba(0,255,136,0.12); color: var(--green); }
+    .type-command_change  { background: rgba(255,176,32,0.12); color: var(--amber); }
+    .type-ir_left_change  { background: rgba(77,159,255,0.12); color: var(--blue); }
+    .type-ir_right_change { background: rgba(77,159,255,0.12); color: var(--blue); }
+    .type-line_lost       { background: rgba(255,61,90,0.12);  color: var(--red); }
+    .event-desc { color: var(--text); }
+
+    /* Stats row */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .stat-mini {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+    }
+    .stat-mini-label { font-size: 10px; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+    .stat-mini-val   { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>⬡ DRONE</h1>
+  <span id="status-dot"></span>
+  <span id="status-text" style="font-size:11px;color:var(--muted)">offline</span>
+  <span id="last-update"></span>
+</header>
+
+<!-- Основні картки -->
+<div class="grid-main">
+  <div class="card">
+    <div class="card-label">Режим</div>
+    <div id="mode-badge" class="manual">MANUAL</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Команда</div>
+    <div id="command-display">—</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Відстань</div>
+    <div class="card-value" id="dist">—</div>
+    <div class="card-sub">метрів</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Uptime</div>
+    <div class="card-value" id="uptime">—</div>
+    <div class="card-sub">секунд</div>
+  </div>
+</div>
+
+<!-- ІЧ датчики -->
+<div class="ir-grid" style="margin-bottom:12px">
+  <div class="ir-card">
+    <div class="ir-label">ІЧ Лівий</div>
+    <div class="ir-dot black" id="ir-left-dot"></div>
+    <div class="ir-text" id="ir-left-text">—</div>
+  </div>
+  <div class="ir-card">
+    <div class="ir-label">ІЧ Правий</div>
+    <div class="ir-dot black" id="ir-right-dot"></div>
+    <div class="ir-text" id="ir-right-text">—</div>
+  </div>
+</div>
+
+<!-- Статистика сесії -->
+<div class="stats-row">
+  <div class="stat-mini">
+    <div class="stat-mini-label">Записів</div>
+    <div class="stat-mini-val" id="s-total">—</div>
+  </div>
+  <div class="stat-mini">
+    <div class="stat-mini-label">Авто (записів)</div>
+    <div class="stat-mini-val" id="s-auto">—</div>
+  </div>
+  <div class="stat-mini">
+    <div class="stat-mini-label">Ручний</div>
+    <div class="stat-mini-val" id="s-manual">—</div>
+  </div>
+  <div class="stat-mini">
+    <div class="stat-mini-label">Макс. відст.</div>
+    <div class="stat-mini-val" id="s-dist">—</div>
+  </div>
+</div>
+
+<!-- Журнал подій -->
+<div class="events-card" style="margin-top:12px">
+  <div class="events-title">Журнал подій</div>
+  <div id="events-list"><div style="color:var(--muted);font-size:12px">Очікуємо події...</div></div>
+</div>
+
+<script>
+  const API = '';
+
+  // --- IR helper ---
+  // val приходить як 'black' або 'white' з ESP32
+  // 'black' = датчик бачить чорну лінію → показуємо темний кружок
+  // 'white' = датчик бачить білу поверхню → показуємо світлий кружок
+  function setIR(side, val) {
+    const dot  = document.getElementById(`ir-${side}-dot`);
+    const text = document.getElementById(`ir-${side}-text`);
+    dot.className = 'ir-dot ' + (val === 'black' ? 'black' : 'white');
+    text.textContent = val === 'black' ? '⬛ чорна' : '⬜ біла';
+    text.style.color = val === 'black' ? '#aaa' : '#eee';
+  }
+
+  // --- Uptime format ---
+  function fmtTime(s) {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return m > 0 ? `${m}хв ${sec}с` : `${sec}с`;
+  }
+
+  // --- Event type label ---
+  const eventLabels = {
+    mode_change:      'Режим',
+    command_change:   'Команда',
+    ir_left_change:   'ІЧ лівий',
+    ir_right_change:  'ІЧ правий',
+    line_lost:        'Лінія втрачена',
+  };
+
+  // ===================== ОНОВЛЕННЯ =====================
+  async function updateLatest() {
+    try {
+      const r = await fetch(`${API}/api/latest`);
+      const d = await r.json();
+      if (!d || !d.mode) return;
+
+      // Онлайн-статус береться з поля d.online яке сервер розраховує
+      // за часом останнього запису в БД (< 10 секунд = онлайн).
+      // Це важливо: сервер завжди відповідає на запит, навіть якщо дрон
+      // вимкнено вже годину — тому просто "відповів сервер" не підходить.
+      const isOnline = d.online === true;
+      const dot = document.getElementById('status-dot');
+      dot.className = isOnline ? 'live' : 'offline';
+      document.getElementById('status-text').textContent = isOnline ? 'online' : 'offline';
+      document.getElementById('last-update').textContent =
+        new Date(d.created_at).toLocaleTimeString('uk-UA');
+
+      // Режим
+      const badge = document.getElementById('mode-badge');
+      badge.textContent = d.mode === 'auto' ? 'AUTO' : 'MANUAL';
+      badge.className = d.mode === 'auto' ? 'auto' : 'manual';
+
+      // Команда
+      document.getElementById('command-display').textContent =
+        (d.command || '—').toUpperCase().replace(/_/g, ' ');
+
+      // Відстань і uptime
+      document.getElementById('dist').textContent   = (d.distance_m || 0).toFixed(2);
+      document.getElementById('uptime').textContent = fmtTime(d.uptime_s || 0);
+
+      // ІЧ датчики
+      setIR('left',  d.ir_left);
+      setIR('right', d.ir_right);
+
+    } catch (e) {
+      document.getElementById('status-dot').className = 'offline';
+      document.getElementById('status-text').textContent = 'offline';
+    }
+  }
+
+  async function updateEvents() {
+    try {
+      const r = await fetch(`${API}/api/events?limit=20`);
+      const rows = await r.json();
+      const el = document.getElementById('events-list');
+      if (!rows.length) {
+        el.innerHTML = '<div style="color:var(--muted);font-size:12px">Ще немає подій</div>';
+        return;
+      }
+      el.innerHTML = rows.map(e => {
+        const t = new Date(e.created_at).toLocaleTimeString('uk-UA');
+        const label = eventLabels[e.type] || e.type;
+        const desc = e.prev_value ? `${e.prev_value} → ${e.value}` : e.value;
+        return `
+          <div class="event-row">
+            <span class="event-time">${t}</span>
+            <span class="event-type type-${e.type}">${label}</span>
+            <span class="event-desc">${desc}</span>
+          </div>`;
+      }).join('');
+    } catch {}
+  }
+
+  async function updateStats() {
+    try {
+      const r = await fetch(`${API}/api/stats`);
+      const d = await r.json();
+      document.getElementById('s-total').textContent  = d.total_records  || '—';
+      document.getElementById('s-auto').textContent   = d.auto_records   || '—';
+      document.getElementById('s-manual').textContent = d.manual_records || '—';
+      document.getElementById('s-dist').textContent   = d.max_distance
+        ? d.max_distance.toFixed(1) + 'м' : '—';
+    } catch {}
+  }
+
+  // Запуск
+  updateLatest();
+  updateEvents();
+  updateStats();
+
+  setInterval(updateLatest, 1000);
+  setInterval(updateEvents, 3000);
+  setInterval(updateStats,  15000);
+</script>
+</body>
+</html>
