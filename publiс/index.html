@@ -6,7 +6,6 @@
   <title>Drone Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <style>
     :root {
       --bg:       #0a0a0f;
@@ -51,7 +50,8 @@
       display: inline-block;
       transition: background 0.3s;
     }
-    #status-dot.live { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
+    #status-dot.live    { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
+    #status-dot.offline { background: var(--red);   box-shadow: 0 0 8px var(--red); }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
     #last-update { font-size: 11px; color: var(--muted); margin-left: auto; }
 
@@ -125,27 +125,6 @@
     .ir-dot.white { background: #eee; border: 2px solid #ccc; box-shadow: 0 0 10px rgba(255,255,255,0.3); }
     .ir-text { font-size: 12px; font-weight: 600; }
 
-    /* Motors */
-    .motors-row { display: flex; gap: 8px; justify-content: space-between; }
-    .motor-block {
-      flex: 1;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 8px;
-      text-align: center;
-      font-size: 11px;
-    }
-    .motor-icon {
-      font-size: 18px;
-      margin-bottom: 4px;
-      display: block;
-      filter: grayscale(1);
-      transition: filter 0.3s;
-    }
-    .motor-icon.on { filter: none; }
-    .motor-name { color: var(--muted); font-size: 10px; }
-
     /* Command */
     #command-display {
       font-family: 'Syne', sans-serif;
@@ -153,22 +132,6 @@
       font-weight: 800;
       letter-spacing: -1px;
       color: var(--amber);
-    }
-
-    /* Chart */
-    .chart-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 12px;
-    }
-    .chart-title {
-      font-size: 11px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      margin-bottom: 12px;
     }
 
     /* Events log */
@@ -265,27 +228,8 @@
   </div>
 </div>
 
-<!-- Мотори -->
-<div class="card" style="margin-bottom:12px">
-  <div class="card-label" style="margin-bottom:12px">Стан моторів</div>
-  <div class="motors-row">
-    <div class="motor-block">
-      <span class="motor-icon" id="m-lf">⚙️</span>
-      <div class="motor-name">Лівий</div>
-    </div>
-    <div class="motor-block">
-      <span class="motor-icon" id="m-rf">⚙️</span>
-      <div class="motor-name">Правий</div>
-    </div>
-    <div class="motor-block">
-      <span class="card-value" id="speed-val" style="font-size:18px">—</span>
-      <div class="motor-name">PWM</div>
-    </div>
-  </div>
-</div>
-
 <!-- Статистика сесії -->
-<div class="stats-row" id="stats-row">
+<div class="stats-row">
   <div class="stat-mini">
     <div class="stat-mini-label">Записів</div>
     <div class="stat-mini-val" id="s-total">—</div>
@@ -304,14 +248,8 @@
   </div>
 </div>
 
-<!-- Графік команд -->
-<div class="chart-card">
-  <div class="chart-title">Команди — остання хвилина</div>
-  <canvas id="chart" height="80"></canvas>
-</div>
-
 <!-- Журнал подій -->
-<div class="events-card">
+<div class="events-card" style="margin-top:12px">
   <div class="events-title">Журнал подій</div>
   <div id="events-list"><div style="color:var(--muted);font-size:12px">Очікуємо події...</div></div>
 </div>
@@ -319,47 +257,16 @@
 <script>
   const API = '';
 
-  // --- Chart ---
-  const ctx = document.getElementById('chart').getContext('2d');
-  const commandColors = {
-    forward: '#00ff88', backward: '#ff3d5a', left: '#4d9fff', right: '#4d9fff',
-    tankLeft: '#4d9fff', tankRight: '#4d9fff', stop: '#4a4a6a',
-    auto_forward: '#00ff88', auto_tankLeft: '#4d9fff', auto_tankRight: '#4d9fff', auto_stop: '#4a4a6a',
-  };
-  const chart = new Chart(ctx, {
-    type: 'bar',
-    data: { labels: [], datasets: [{
-      label: 'Команда',
-      data: [],
-      backgroundColor: [],
-      borderRadius: 3,
-      barThickness: 6,
-    }]},
-    options: {
-      animation: false,
-      plugins: { legend: { display: false }, tooltip: {
-        callbacks: { label: ctx => ctx.raw.cmd }
-      }},
-      scales: {
-        x: { display: false },
-        y: { display: false, min: 0, max: 1 }
-      }
-    }
-  });
-
   // --- IR helper ---
+  // val приходить як 'black' або 'white' з ESP32
+  // 'black' = датчик бачить чорну лінію → показуємо темний кружок
+  // 'white' = датчик бачить білу поверхню → показуємо світлий кружок
   function setIR(side, val) {
     const dot  = document.getElementById(`ir-${side}-dot`);
     const text = document.getElementById(`ir-${side}-text`);
     dot.className = 'ir-dot ' + (val === 'black' ? 'black' : 'white');
     text.textContent = val === 'black' ? '⬛ чорна' : '⬜ біла';
     text.style.color = val === 'black' ? '#aaa' : '#eee';
-  }
-
-  // --- Motor helper ---
-  function setMotor(id, on) {
-    const el = document.getElementById(id);
-    el.classList.toggle('on', on);
   }
 
   // --- Uptime format ---
@@ -385,9 +292,14 @@
       const d = await r.json();
       if (!d || !d.mode) return;
 
-      // Статус
-      document.getElementById('status-dot').className = 'live';
-      document.getElementById('status-text').textContent = 'online';
+      // Онлайн-статус береться з поля d.online яке сервер розраховує
+      // за часом останнього запису в БД (< 10 секунд = онлайн).
+      // Це важливо: сервер завжди відповідає на запит, навіть якщо дрон
+      // вимкнено вже годину — тому просто "відповів сервер" не підходить.
+      const isOnline = d.online === true;
+      const dot = document.getElementById('status-dot');
+      dot.className = isOnline ? 'live' : 'offline';
+      document.getElementById('status-text').textContent = isOnline ? 'online' : 'offline';
       document.getElementById('last-update').textContent =
         new Date(d.created_at).toLocaleTimeString('uk-UA');
 
@@ -398,40 +310,20 @@
 
       // Команда
       document.getElementById('command-display').textContent =
-        (d.command || '—').toUpperCase().replace('_', ' ');
+        (d.command || '—').toUpperCase().replace(/_/g, ' ');
 
       // Відстань і uptime
       document.getElementById('dist').textContent   = (d.distance_m || 0).toFixed(2);
       document.getElementById('uptime').textContent = fmtTime(d.uptime_s || 0);
 
-      // ІЧ
+      // ІЧ датчики
       setIR('left',  d.ir_left);
       setIR('right', d.ir_right);
 
-      // Мотори
-      setMotor('m-lf', d.motor_left);
-      setMotor('m-rf', d.motor_right);
-      document.getElementById('speed-val').textContent = d.base_speed ?? '—';
-
     } catch (e) {
-      document.getElementById('status-dot').className = '';
+      document.getElementById('status-dot').className = 'offline';
       document.getElementById('status-text').textContent = 'offline';
     }
-  }
-
-  async function updateHistory() {
-    try {
-      const r = await fetch(`${API}/api/history?limit=80`);
-      const rows = await r.json();
-      chart.data.labels = rows.map(r =>
-        new Date(r.created_at).toLocaleTimeString('uk-UA')
-      );
-      chart.data.datasets[0].data = rows.map(r => ({ y: 1, cmd: r.command }));
-      chart.data.datasets[0].backgroundColor = rows.map(r =>
-        commandColors[r.command] || '#4a4a6a'
-      );
-      chart.update();
-    } catch {}
   }
 
   async function updateEvents() {
@@ -439,13 +331,14 @@
       const r = await fetch(`${API}/api/events?limit=20`);
       const rows = await r.json();
       const el = document.getElementById('events-list');
-      if (!rows.length) { el.innerHTML = '<div style="color:var(--muted);font-size:12px">Ще немає подій</div>'; return; }
+      if (!rows.length) {
+        el.innerHTML = '<div style="color:var(--muted);font-size:12px">Ще немає подій</div>';
+        return;
+      }
       el.innerHTML = rows.map(e => {
         const t = new Date(e.created_at).toLocaleTimeString('uk-UA');
         const label = eventLabels[e.type] || e.type;
-        const desc = e.prev_value
-          ? `${e.prev_value} → ${e.value}`
-          : e.value;
+        const desc = e.prev_value ? `${e.prev_value} → ${e.value}` : e.value;
         return `
           <div class="event-row">
             <span class="event-time">${t}</span>
@@ -463,20 +356,19 @@
       document.getElementById('s-total').textContent  = d.total_records  || '—';
       document.getElementById('s-auto').textContent   = d.auto_records   || '—';
       document.getElementById('s-manual').textContent = d.manual_records || '—';
-      document.getElementById('s-dist').textContent   = d.max_distance ? d.max_distance.toFixed(1) + 'м' : '—';
+      document.getElementById('s-dist').textContent   = d.max_distance
+        ? d.max_distance.toFixed(1) + 'м' : '—';
     } catch {}
   }
 
   // Запуск
   updateLatest();
-  updateHistory();
   updateEvents();
   updateStats();
 
-  setInterval(updateLatest,  1000);
-  setInterval(updateHistory, 5000);
-  setInterval(updateEvents,  3000);
-  setInterval(updateStats,   15000);
+  setInterval(updateLatest, 1000);
+  setInterval(updateEvents, 3000);
+  setInterval(updateStats,  15000);
 </script>
 </body>
 </html>
