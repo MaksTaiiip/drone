@@ -125,6 +125,13 @@
     .ir-dot.white { background: #eee; border: 2px solid #ccc; box-shadow: 0 0 10px rgba(255,255,255,0.3); }
     .ir-text { font-size: 12px; font-weight: 600; }
 
+
+    /* Sonar card */
+    #sonar-card.danger { border-color: var(--red); }
+    #sonar-card.danger .card-value { color: var(--red); }
+    #sonar-card.warn   { border-color: var(--amber); }
+    #sonar-card.warn   .card-value { color: var(--amber); }
+
     /* Command */
     #command-display {
       font-family: 'Syne', sans-serif;
@@ -163,7 +170,9 @@
     .type-command_change  { background: rgba(255,176,32,0.12); color: var(--amber); }
     .type-ir_left_change  { background: rgba(77,159,255,0.12); color: var(--blue); }
     .type-ir_right_change { background: rgba(77,159,255,0.12); color: var(--blue); }
-    .type-line_lost       { background: rgba(255,61,90,0.12);  color: var(--red); }
+    .type-line_lost         { background: rgba(255,61,90,0.12);  color: var(--red); }
+    .type-obstacle_detected { background: rgba(255,176,32,0.12); color: var(--amber); }
+    .type-obstacle_cleared  { background: rgba(0,255,136,0.12);  color: var(--green); }
     .event-desc { color: var(--text); }
 
     /* Stats row */
@@ -212,6 +221,11 @@
     <div class="card-value" id="uptime">—</div>
     <div class="card-sub">секунд</div>
   </div>
+  <div class="card" id="sonar-card">
+    <div class="card-label">Ультразвук</div>
+    <div class="card-value" id="sonar-val">—</div>
+    <div class="card-sub" id="sonar-sub">см до перешкоди</div>
+  </div>
 </div>
 
 <!-- ІЧ датчики -->
@@ -245,6 +259,10 @@
   <div class="stat-mini">
     <div class="stat-mini-label">Макс. відст.</div>
     <div class="stat-mini-val" id="s-dist">—</div>
+  </div>
+  <div class="stat-mini">
+    <div class="stat-mini-label">Перешкод</div>
+    <div class="stat-mini-val" id="s-obstacles" style="color:var(--amber)">—</div>
   </div>
 </div>
 
@@ -282,7 +300,9 @@
     command_change:   'Команда',
     ir_left_change:   'ІЧ лівий',
     ir_right_change:  'ІЧ правий',
-    line_lost:        'Лінія втрачена',
+    line_lost:          'Лінія втрачена',
+    obstacle_detected:  'Перешкода',
+    obstacle_cleared:   'Шлях вільний',
   };
 
   // ===================== ОНОВЛЕННЯ =====================
@@ -320,6 +340,28 @@
       setIR('left',  d.ir_left);
       setIR('right', d.ir_right);
 
+      // Ультразвуковий датчик
+      const sonarCard = document.getElementById('sonar-card');
+      const sonarVal  = document.getElementById('sonar-val');
+      const sonarSub  = document.getElementById('sonar-sub');
+      if (d.sonar_cm != null) {
+        sonarVal.textContent = d.sonar_cm.toFixed(0);
+        if (d.obstacle) {
+          sonarCard.className = 'card danger';
+          sonarSub.textContent = '⚠ ПЕРЕШКОДА';
+        } else if (d.sonar_cm < 40) {
+          sonarCard.className = 'card warn';
+          sonarSub.textContent = 'см — близько';
+        } else {
+          sonarCard.className = 'card';
+          sonarSub.textContent = 'см до перешкоди';
+        }
+      } else {
+        sonarVal.textContent = '—';
+        sonarCard.className = 'card';
+        sonarSub.textContent = 'см до перешкоди';
+      }
+
     } catch (e) {
       document.getElementById('status-dot').className = 'offline';
       document.getElementById('status-text').textContent = 'offline';
@@ -356,8 +398,9 @@
       document.getElementById('s-total').textContent  = d.total_records  || '—';
       document.getElementById('s-auto').textContent   = d.auto_records   || '—';
       document.getElementById('s-manual').textContent = d.manual_records || '—';
-      document.getElementById('s-dist').textContent   = d.max_distance
+      document.getElementById('s-dist').textContent      = d.max_distance
         ? d.max_distance.toFixed(1) + 'м' : '—';
+      document.getElementById('s-obstacles').textContent = d.total_obstacles || '0';
     } catch {}
   }
 
