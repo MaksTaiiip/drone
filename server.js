@@ -194,4 +194,23 @@ app.get('/api/stats', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Сервер на порту ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`🚀 Сервер на порту ${PORT}`);
+
+  // Self-ping кожні 14 хвилин щоб Render не засипав сервер
+  const https = require('https');
+  const SELF_URL = process.env.RENDER_EXTERNAL_URL; // Render автоматично задає цю змінну
+
+  if (SELF_URL) {
+    setInterval(() => {
+      https.get(SELF_URL + '/api/latest', (res) => {
+        console.log(`[ping] ${new Date().toISOString()} → ${res.statusCode}`);
+      }).on('error', (e) => {
+        console.error(`[ping] Помилка: ${e.message}`);
+      });
+    }, 14 * 60 * 1000); // 14 хвилин
+    console.log(`🔔 Self-ping активний → ${SELF_URL}`);
+  } else {
+    console.log('⚠️  RENDER_EXTERNAL_URL не знайдено — self-ping вимкнено (локальний запуск)');
+  }
+});
